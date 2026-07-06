@@ -1,0 +1,2456 @@
+{
+  "datasets": [
+    {
+      "name": "dashboard_views",
+      "displayName": "Dashboard Views",
+      "queryLines": [
+        "SELECT\n",
+        "  a.event_date,\n",
+        "  a.user_identity.email AS viewer_email,\n",
+        "  a.action_name,\n",
+        "  a.request_params.dashboard_id AS dashboard_id,\n",
+        "  a.workspace_id,\n",
+        "  COALESCE(w.workspace_name, a.workspace_id) AS workspace_name\n",
+        "FROM\n",
+        "  system.access.audit a\n",
+        "    LEFT JOIN system.access.workspaces_latest w\n",
+        "      ON a.workspace_id = w.workspace_id\n",
+        "WHERE\n",
+        "  a.service_name = 'dashboards'\n",
+        "  AND a.action_name IN ('getDashboard', 'getPublishedDashboard', 'executeDashboardWidget')\n",
+        "  AND a.event_date >= :date_range.min\n",
+        "  AND a.event_date <= :date_range.max\n",
+        "  AND a.user_identity.email IS NOT NULL\n",
+        "  AND a.user_identity.email != 'System-User'\n",
+        "  AND (\n",
+        "    array_contains(:viewer, a.user_identity.email)\n",
+        "    OR array_size(:viewer) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:dashboard_id, a.request_params.dashboard_id)\n",
+        "    OR array_size(:dashboard_id) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:workspace_name, COALESCE(w.workspace_name, a.workspace_id))\n",
+        "    OR array_size(:workspace_name) = 0\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        },
+        {
+          "displayName": "Viewer",
+          "keyword": "viewer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dashboard ID",
+          "keyword": "dashboard_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Workspace",
+          "keyword": "workspace_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "dashboard_queries",
+      "displayName": "Dashboard Query Performance",
+      "queryLines": [
+        "SELECT\n",
+        "  DATE(h.start_time) AS query_date,\n",
+        "  h.executed_by,\n",
+        "  h.query_source.dashboard_id AS dashboard_id,\n",
+        "  h.execution_status,\n",
+        "  h.total_duration_ms,\n",
+        "  h.execution_duration_ms,\n",
+        "  h.read_bytes,\n",
+        "  h.produced_rows,\n",
+        "  h.from_result_cache,\n",
+        "  h.compute.warehouse_id AS warehouse_id,\n",
+        "  h.statement_id,\n",
+        "  h.workspace_id,\n",
+        "  COALESCE(w.workspace_name, h.workspace_id) AS workspace_name\n",
+        "FROM\n",
+        "  system.query.history h\n",
+        "    LEFT JOIN system.access.workspaces_latest w\n",
+        "      ON h.workspace_id = w.workspace_id\n",
+        "WHERE\n",
+        "  h.query_source.dashboard_id IS NOT NULL\n",
+        "  AND DATE(h.start_time) >= :date_range.min\n",
+        "  AND DATE(h.start_time) <= :date_range.max\n",
+        "  AND (\n",
+        "    array_contains(:viewer, h.executed_by)\n",
+        "    OR array_size(:viewer) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:dashboard_id, h.query_source.dashboard_id)\n",
+        "    OR array_size(:dashboard_id) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:warehouse_id, h.compute.warehouse_id)\n",
+        "    OR array_size(:warehouse_id) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:workspace_name, COALESCE(w.workspace_name, h.workspace_id))\n",
+        "    OR array_size(:workspace_name) = 0\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        },
+        {
+          "displayName": "Viewer",
+          "keyword": "viewer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dashboard ID",
+          "keyword": "dashboard_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Warehouse ID",
+          "keyword": "warehouse_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Workspace",
+          "keyword": "workspace_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "dashboard_costs",
+      "displayName": "Dashboard DBU Costs",
+      "queryLines": [
+        "SELECT\n",
+        "  DATE(h.start_time) AS query_date,\n",
+        "  h.executed_by,\n",
+        "  h.query_source.dashboard_id AS dashboard_id,\n",
+        "  h.total_duration_ms,\n",
+        "  h.execution_duration_ms,\n",
+        "  h.compute.warehouse_id AS warehouse_id,\n",
+        "  h.workspace_id,\n",
+        "  COALESCE(w.workspace_name, h.workspace_id) AS workspace_name,\n",
+        "  u.sku_name,\n",
+        "  CAST(u.active_usage_quantity AS DOUBLE) AS dbus_consumed,\n",
+        "  CAST(u.active_usage_quantity * COALESCE(p.pricing.default, 0) AS DOUBLE) AS estimated_cost_usd\n",
+        "FROM\n",
+        "  system.query.history h\n",
+        "    LEFT JOIN system.access.workspaces_latest w\n",
+        "      ON h.workspace_id = w.workspace_id\n",
+        "    LEFT JOIN system.billing.attributed_usage u\n",
+        "      ON h.statement_id = u.usage_metadata.dbsql_statement_id\n",
+        "    LEFT JOIN system.billing.account_prices p\n",
+        "      ON u.sku_name = p.sku_name\n",
+        "      AND u.usage_date BETWEEN\n",
+        "        DATE(p.price_start_time)\n",
+        "      AND\n",
+        "        COALESCE(DATE(p.price_end_time), CURRENT_DATE())\n",
+        "WHERE\n",
+        "  h.query_source.dashboard_id IS NOT NULL\n",
+        "  AND DATE(h.start_time) >= :date_range.min\n",
+        "  AND DATE(h.start_time) <= :date_range.max\n",
+        "  AND (\n",
+        "    array_contains(:viewer, h.executed_by)\n",
+        "    OR array_size(:viewer) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:dashboard_id, h.query_source.dashboard_id)\n",
+        "    OR array_size(:dashboard_id) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:warehouse_id, h.compute.warehouse_id)\n",
+        "    OR array_size(:warehouse_id) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:workspace_name, COALESCE(w.workspace_name, h.workspace_id))\n",
+        "    OR array_size(:workspace_name) = 0\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        },
+        {
+          "displayName": "Viewer",
+          "keyword": "viewer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dashboard ID",
+          "keyword": "dashboard_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Warehouse ID",
+          "keyword": "warehouse_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Workspace",
+          "keyword": "workspace_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "daily_activity",
+      "displayName": "Daily Dashboard Activity",
+      "queryLines": [
+        "SELECT\n",
+        "  DATE(h.start_time) AS activity_date,\n",
+        "  h.query_source.dashboard_id AS dashboard_id,\n",
+        "  h.compute.warehouse_id AS warehouse_id,\n",
+        "  COALESCE(w.workspace_name, h.workspace_id) AS workspace_name,\n",
+        "  COUNT(*) AS query_count,\n",
+        "  COUNT(DISTINCT h.executed_by) AS unique_users,\n",
+        "  AVG(h.total_duration_ms) AS avg_duration_ms,\n",
+        "  SUM(h.read_bytes) AS total_bytes_read,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN h.from_result_cache THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS cache_hits,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN NOT h.from_result_cache THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS cache_misses\n",
+        "FROM\n",
+        "  system.query.history h\n",
+        "    LEFT JOIN system.access.workspaces_latest w\n",
+        "      ON h.workspace_id = w.workspace_id\n",
+        "WHERE\n",
+        "  h.query_source.dashboard_id IS NOT NULL\n",
+        "  AND DATE(h.start_time) >= :date_range.min\n",
+        "  AND DATE(h.start_time) <= :date_range.max\n",
+        "  AND (\n",
+        "    array_contains(:viewer, h.executed_by)\n",
+        "    OR array_size(:viewer) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:dashboard_id, h.query_source.dashboard_id)\n",
+        "    OR array_size(:dashboard_id) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:warehouse_id, h.compute.warehouse_id)\n",
+        "    OR array_size(:warehouse_id) = 0\n",
+        "  )\n",
+        "  AND (\n",
+        "    array_contains(:workspace_name, COALESCE(w.workspace_name, h.workspace_id))\n",
+        "    OR array_size(:workspace_name) = 0\n",
+        "  )\n",
+        "GROUP BY\n",
+        "  1,\n",
+        "  2,\n",
+        "  3,\n",
+        "  4"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        },
+        {
+          "displayName": "Viewer",
+          "keyword": "viewer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dashboard ID",
+          "keyword": "dashboard_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Warehouse ID",
+          "keyword": "warehouse_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Workspace",
+          "keyword": "workspace_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "4c9b4d63",
+      "displayName": "Overview",
+      "layout": [
+        {
+          "widget": {
+            "name": "header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## AI/BI Dashboard Usage Analytics\n",
+                "Insights into dashboard viewership, popularity, query performance, and cost attribution over the last 30 days."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_total_views",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "fields": [
+                    {
+                      "name": "count(viewer_email)",
+                      "expression": "COUNT(`viewer_email`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Dashboard Views",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(viewer_email)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_unique_viewers",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "fields": [
+                    {
+                      "name": "countdistinct(viewer_email)",
+                      "expression": "COUNT(DISTINCT `viewer_email`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Unique Viewers",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "countdistinct(viewer_email)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_active_dashboards",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "countdistinct(dashboard_id)",
+                      "expression": "COUNT(DISTINCT `dashboard_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Active Dashboards",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "countdistinct(dashboard_id)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_total_queries",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "count(statement_id)",
+                      "expression": "COUNT(`statement_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Dashboard Queries",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(statement_id)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "daily_activity_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "query_date",
+                      "expression": "`query_date`"
+                    },
+                    {
+                      "name": "count(statement_id)",
+                      "expression": "COUNT(`statement_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Daily Dashboard Query Volume",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "query_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "count(statement_id)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "top_dashboards_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "count(statement_id)",
+                      "expression": "COUNT(`statement_id`)"
+                    },
+                    {
+                      "name": "dashboard_id",
+                      "expression": "`dashboard_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Most Popular Dashboards (by Queries)",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(statement_id)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "dashboard_id",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "top_viewers_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "fields": [
+                    {
+                      "name": "count(viewer_email)",
+                      "expression": "COUNT(`viewer_email`)"
+                    },
+                    {
+                      "name": "viewer_email",
+                      "expression": "`viewer_email`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Top Dashboard Viewers",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(viewer_email)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "viewer_email",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "cost_by_dashboard_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(estimated_cost_usd)",
+                      "expression": "SUM(`estimated_cost_usd`)"
+                    },
+                    {
+                      "name": "dashboard_id",
+                      "expression": "`dashboard_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Estimated Cost by Dashboard (USD)",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(estimated_cost_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "dashboard_id",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "query_perf_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "dashboard_id",
+                      "expression": "`dashboard_id`"
+                    },
+                    {
+                      "name": "executed_by",
+                      "expression": "`executed_by`"
+                    },
+                    {
+                      "name": "count(statement_id)",
+                      "expression": "COUNT(`statement_id`)"
+                    },
+                    {
+                      "name": "avg(total_duration_ms)",
+                      "expression": "AVG(`total_duration_ms`)"
+                    },
+                    {
+                      "name": "sum(read_bytes)",
+                      "expression": "SUM(`read_bytes`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Dashboard Query Performance Details",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "dashboard_id"
+                  },
+                  {
+                    "fieldName": "executed_by"
+                  },
+                  {
+                    "fieldName": "count(statement_id)",
+                    "displayName": "Total Queries"
+                  },
+                  {
+                    "fieldName": "avg(total_duration_ms)",
+                    "displayName": "Avg Duration (ms)"
+                  },
+                  {
+                    "fieldName": "sum(read_bytes)",
+                    "displayName": "Total Bytes Read"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "views_by_workspace",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "fields": [
+                    {
+                      "name": "count(viewer_email)",
+                      "expression": "COUNT(`viewer_email`)"
+                    },
+                    {
+                      "name": "workspace_name",
+                      "expression": "`workspace_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Dashboard Views by Workspace",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(viewer_email)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "workspace_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 24,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "queries_by_workspace",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "count(statement_id)",
+                      "expression": "COUNT(`statement_id`)"
+                    },
+                    {
+                      "name": "workspace_name",
+                      "expression": "`workspace_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Queries by Workspace",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(statement_id)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "workspace_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 24,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "performance",
+      "displayName": "Performance & Costs",
+      "layout": [
+        {
+          "widget": {
+            "name": "header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Query Performance & Cost Breakdown\n",
+                "Cache utilization, query latency trends, and DBU cost attribution for dashboard workloads."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_avg_duration",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "avg(total_duration_ms)",
+                      "expression": "AVG(`total_duration_ms`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Avg Query Duration (ms)",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(total_duration_ms)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_cache_rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "fields": [
+                    {
+                      "name": "sum(cache_hits)",
+                      "expression": "SUM(`cache_hits`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Cache Hit Rate",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(cache_hits)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_total_dbus",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(dbus_consumed)",
+                      "expression": "SUM(`dbus_consumed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total DBUs Consumed",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(dbus_consumed)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 2,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "daily_cost_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "query_date",
+                      "expression": "`query_date`"
+                    },
+                    {
+                      "name": "sum(estimated_cost_usd)",
+                      "expression": "SUM(`estimated_cost_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Daily Estimated Cost Trend (USD)",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "query_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(estimated_cost_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "avg_duration_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "fields": [
+                    {
+                      "name": "activity_date",
+                      "expression": "`activity_date`"
+                    },
+                    {
+                      "name": "avg(avg_duration_ms)",
+                      "expression": "AVG(`avg_duration_ms`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Avg Query Duration Over Time (ms)",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "activity_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "avg(avg_duration_ms)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "cache_trend_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "fields": [
+                    {
+                      "name": "activity_date",
+                      "expression": "`activity_date`"
+                    },
+                    {
+                      "name": "sum(cache_hits)",
+                      "expression": "SUM(`cache_hits`)"
+                    },
+                    {
+                      "name": "sum(cache_misses)",
+                      "expression": "SUM(`cache_misses`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Daily Cache Hits vs Misses",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "activity_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "sum(cache_hits)"
+                    },
+                    {
+                      "fieldName": "sum(cache_misses)"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "cost_by_user_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(estimated_cost_usd)",
+                      "expression": "SUM(`estimated_cost_usd`)"
+                    },
+                    {
+                      "name": "executed_by",
+                      "expression": "`executed_by`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Cost by User (USD)",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(estimated_cost_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "executed_by",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "dbu_by_sku_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(dbus_consumed)",
+                      "expression": "SUM(`dbus_consumed`)"
+                    },
+                    {
+                      "name": "sku_name",
+                      "expression": "`sku_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "DBU Consumption by SKU",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(dbus_consumed)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "sku_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "daily_dbu_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "query_date",
+                      "expression": "`query_date`"
+                    },
+                    {
+                      "name": "sum(dbus_consumed)",
+                      "expression": "SUM(`dbus_consumed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Daily DBU Consumption",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "query_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(dbus_consumed)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 17,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "queries_by_warehouse",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "count(statement_id)",
+                      "expression": "COUNT(`statement_id`)"
+                    },
+                    {
+                      "name": "warehouse_id",
+                      "expression": "`warehouse_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Queries by Warehouse",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(statement_id)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "warehouse_id",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "cost_by_warehouse",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(estimated_cost_usd)",
+                      "expression": "SUM(`estimated_cost_usd`)"
+                    },
+                    {
+                      "name": "warehouse_id",
+                      "expression": "`warehouse_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Estimated Cost by Warehouse (USD)",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(estimated_cost_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "warehouse_id",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 23,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "dbu_by_warehouse",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(dbus_consumed)",
+                      "expression": "SUM(`dbus_consumed`)"
+                    },
+                    {
+                      "name": "warehouse_id",
+                      "expression": "`warehouse_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "DBU Consumption by Warehouse",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(dbus_consumed)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "warehouse_id",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 29,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "avg_duration_by_warehouse",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "avg(total_duration_ms)",
+                      "expression": "AVG(`total_duration_ms`)"
+                    },
+                    {
+                      "name": "warehouse_id",
+                      "expression": "`warehouse_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Avg Query Duration by Warehouse (ms)",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "avg(total_duration_ms)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "warehouse_id",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 29,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "cost_by_workspace",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(estimated_cost_usd)",
+                      "expression": "SUM(`estimated_cost_usd`)"
+                    },
+                    {
+                      "name": "workspace_name",
+                      "expression": "`workspace_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Estimated Cost by Workspace (USD)",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(estimated_cost_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "workspace_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 35,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "dbu_by_workspace",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "fields": [
+                    {
+                      "name": "sum(dbus_consumed)",
+                      "expression": "SUM(`dbus_consumed`)"
+                    },
+                    {
+                      "name": "workspace_name",
+                      "expression": "`workspace_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "DBU Consumption by Workspace",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(dbus_consumed)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "workspace_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 35,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "a2e8f265",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "filter_date_range",
+            "queries": [
+              {
+                "name": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_event_date",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "fields": [
+                    {
+                      "name": "event_date",
+                      "expression": "`event_date`"
+                    },
+                    {
+                      "name": "event_date_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_date_range",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_date_range",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_date_range",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_date_range",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Date Range",
+                "showTitle": true
+              },
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "event_date",
+                    "queryName": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_event_date"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_date_range"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_viewer",
+            "queries": [
+              {
+                "name": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_viewer_email",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "fields": [
+                    {
+                      "name": "viewer_email",
+                      "expression": "`viewer_email`"
+                    },
+                    {
+                      "name": "viewer_email_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_viewer",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "parameters": [
+                    {
+                      "name": "viewer",
+                      "keyword": "viewer"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_viewer",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "parameters": [
+                    {
+                      "name": "viewer",
+                      "keyword": "viewer"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_viewer",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "parameters": [
+                    {
+                      "name": "viewer",
+                      "keyword": "viewer"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_viewer",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "parameters": [
+                    {
+                      "name": "viewer",
+                      "keyword": "viewer"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Viewer",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "viewer_email",
+                    "queryName": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_viewer_email"
+                  },
+                  {
+                    "parameterName": "viewer",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_viewer"
+                  },
+                  {
+                    "parameterName": "viewer",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_viewer"
+                  },
+                  {
+                    "parameterName": "viewer",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_viewer"
+                  },
+                  {
+                    "parameterName": "viewer",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_viewer"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_dashboard_id",
+            "queries": [
+              {
+                "name": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_dashboard_id",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "dashboard_id",
+                      "expression": "`dashboard_id`"
+                    },
+                    {
+                      "name": "dashboard_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_dashboard_id",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "parameters": [
+                    {
+                      "name": "dashboard_id",
+                      "keyword": "dashboard_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_dashboard_id",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "parameters": [
+                    {
+                      "name": "dashboard_id",
+                      "keyword": "dashboard_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_dashboard_id",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "parameters": [
+                    {
+                      "name": "dashboard_id",
+                      "keyword": "dashboard_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_dashboard_id",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "parameters": [
+                    {
+                      "name": "dashboard_id",
+                      "keyword": "dashboard_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Dashboard ID",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "dashboard_id",
+                    "queryName": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_dashboard_id"
+                  },
+                  {
+                    "parameterName": "dashboard_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_dashboard_id"
+                  },
+                  {
+                    "parameterName": "dashboard_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_dashboard_id"
+                  },
+                  {
+                    "parameterName": "dashboard_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_dashboard_id"
+                  },
+                  {
+                    "parameterName": "dashboard_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_dashboard_id"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_warehouse",
+            "queries": [
+              {
+                "name": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_warehouse_id",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "fields": [
+                    {
+                      "name": "warehouse_id",
+                      "expression": "`warehouse_id`"
+                    },
+                    {
+                      "name": "warehouse_id_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_warehouse_id",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "parameters": [
+                    {
+                      "name": "warehouse_id",
+                      "keyword": "warehouse_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_warehouse_id",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "parameters": [
+                    {
+                      "name": "warehouse_id",
+                      "keyword": "warehouse_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_warehouse_id",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "parameters": [
+                    {
+                      "name": "warehouse_id",
+                      "keyword": "warehouse_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Warehouse",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "warehouse_id",
+                    "queryName": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_warehouse_id"
+                  },
+                  {
+                    "parameterName": "warehouse_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_warehouse_id"
+                  },
+                  {
+                    "parameterName": "warehouse_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_warehouse_id"
+                  },
+                  {
+                    "parameterName": "warehouse_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_warehouse_id"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_workspace",
+            "queries": [
+              {
+                "name": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_workspace_name",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "fields": [
+                    {
+                      "name": "workspace_name",
+                      "expression": "`workspace_name`"
+                    },
+                    {
+                      "name": "workspace_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_workspace_name",
+                "query": {
+                  "datasetName": "dashboard_views",
+                  "parameters": [
+                    {
+                      "name": "workspace_name",
+                      "keyword": "workspace_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_workspace_name",
+                "query": {
+                  "datasetName": "dashboard_queries",
+                  "parameters": [
+                    {
+                      "name": "workspace_name",
+                      "keyword": "workspace_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_workspace_name",
+                "query": {
+                  "datasetName": "dashboard_costs",
+                  "parameters": [
+                    {
+                      "name": "workspace_name",
+                      "keyword": "workspace_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_workspace_name",
+                "query": {
+                  "datasetName": "daily_activity",
+                  "parameters": [
+                    {
+                      "name": "workspace_name",
+                      "keyword": "workspace_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Workspace",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "workspace_name",
+                    "queryName": "dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_workspace_name"
+                  },
+                  {
+                    "parameterName": "workspace_name",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756502421b4d9f30c195a825b25b_workspace_name"
+                  },
+                  {
+                    "parameterName": "workspace_name",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f1756505cf174e8ce6a5c02b7ed1a6_workspace_name"
+                  },
+                  {
+                    "parameterName": "workspace_name",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17565094a1d738ecca826eb5b75b5_workspace_name"
+                  },
+                  {
+                    "parameterName": "workspace_name",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_workspace_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#FAFAFB",
+        "dark": "#1F272D"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "widgetBorderColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "fontColor": {
+        "light": "#000000",
+        "dark": "#E8ECF0"
+      },
+      "selectionColor": {
+        "light": "#2272B4",
+        "dark": "#8ACAFF"
+      },
+      "visualizationColors": [
+        "#077A9D",
+        "#FFAB00",
+        "#00A972",
+        "#FF3621",
+        "#8BCAE7",
+        "#AB4057",
+        "#99DDB4",
+        "#FCA4A1",
+        "#919191",
+        "#BF7080",
+        "#077A9D"
+      ],
+      "widgetHeaderAlignment": "CENTER"
+    },
+    "applyModeEnabled": false
+  }
+}
