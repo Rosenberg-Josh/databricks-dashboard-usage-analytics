@@ -226,7 +226,7 @@
         "WHERE\n",
         "  h.query_source.dashboard_id IS NOT NULL\n",
         "  AND DATE(h.start_time) >= :date_range.min\n",
-        "  AND DATE(h.start_time) <= LEAST(:date_range.max, CURRENT_DATE() - INTERVAL 2 DAYS)\n",
+        "  AND DATE(h.start_time) <= :date_range.max\n",
         "  AND (\n",
         "    array_contains(:viewer, h.executed_by)\n",
         "    OR array_size(:viewer) = 0\n",
