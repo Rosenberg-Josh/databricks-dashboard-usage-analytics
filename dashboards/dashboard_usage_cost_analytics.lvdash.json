@@ -197,7 +197,7 @@
     },
     {
       "name": "dashboard_costs",
-      "displayName": "Dashboard DBU Costs",
+      "displayName": "Dashboard DBU Costs (Attributed)",
       "queryLines": [
         "SELECT\n",
         "  DATE(h.start_time) AS query_date,\n",
@@ -215,7 +215,7 @@
         "  system.query.history h\n",
         "    LEFT JOIN system.access.workspaces_latest w\n",
         "      ON h.workspace_id = w.workspace_id\n",
-        "    LEFT JOIN system.billing.attributed_usage u\n",
+        "    INNER JOIN system.billing.attributed_usage u\n",
         "      ON h.statement_id = u.usage_metadata.dbsql_statement_id\n",
         "    LEFT JOIN system.billing.account_prices p\n",
         "      ON u.sku_name = p.sku_name\n",
@@ -226,7 +226,7 @@
         "WHERE\n",
         "  h.query_source.dashboard_id IS NOT NULL\n",
         "  AND DATE(h.start_time) >= :date_range.min\n",
-        "  AND DATE(h.start_time) <= :date_range.max\n",
+        "  AND DATE(h.start_time) <= LEAST(:date_range.max, CURRENT_DATE() - INTERVAL 2 DAYS)\n",
         "  AND (\n",
         "    array_contains(:viewer, h.executed_by)\n",
         "    OR array_size(:viewer) = 0\n",
@@ -405,6 +405,126 @@
         },
         {
           "displayName": "Warehouse ID",
+          "keyword": "warehouse_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Workspace",
+          "keyword": "workspace_name",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "proportional_costs",
+      "displayName": "Dashboard Warehouse DBUs",
+      "queryLines": [
+        "WITH dashboard_warehouses AS (\n",
+        "  SELECT DISTINCT\n",
+        "    DATE(start_time) AS usage_date,\n",
+        "    compute.warehouse_id AS warehouse_id\n",
+        "  FROM\n",
+        "    system.query.history\n",
+        "  WHERE\n",
+        "    query_source.dashboard_id IS NOT NULL\n",
+        "    AND DATE(start_time) >= :date_range.min\n",
+        "    AND DATE(start_time) <= :date_range.max\n",
+        "    AND (\n",
+        "      array_contains(:viewer, executed_by)\n",
+        "      OR array_size(:viewer) = 0\n",
+        "    )\n",
+        "    AND (\n",
+        "      array_contains(:dashboard_id, query_source.dashboard_id)\n",
+        "      OR array_size(:dashboard_id) = 0\n",
+        "    )\n",
+        "    AND (\n",
+        "      array_contains(:warehouse_id, compute.warehouse_id)\n",
+        "      OR array_size(:warehouse_id) = 0\n",
+        "    )\n",
+        ")\n",
+        "SELECT\n",
+        "  b.usage_date,\n",
+        "  b.usage_metadata.warehouse_id AS warehouse_id,\n",
+        "  b.sku_name,\n",
+        "  b.workspace_id,\n",
+        "  COALESCE(ws.workspace_name, b.workspace_id) AS workspace_name,\n",
+        "  SUM(b.usage_quantity) AS total_dbus\n",
+        "FROM\n",
+        "  system.billing.usage b\n",
+        "    INNER JOIN dashboard_warehouses dw\n",
+        "      ON b.usage_date = dw.usage_date\n",
+        "      AND b.usage_metadata.warehouse_id = dw.warehouse_id\n",
+        "    LEFT JOIN system.access.workspaces_latest ws\n",
+        "      ON b.workspace_id = ws.workspace_id\n",
+        "WHERE\n",
+        "  b.billing_origin_product = 'SQL'\n",
+        "  AND b.usage_date >= :date_range.min\n",
+        "  AND b.usage_date <= LEAST(:date_range.max, CURRENT_DATE() - INTERVAL 2 DAYS)\n",
+        "  AND (\n",
+        "    array_contains(:workspace_name, COALESCE(ws.workspace_name, b.workspace_id))\n",
+        "    OR array_size(:workspace_name) = 0\n",
+        "  )\n",
+        "GROUP BY\n",
+        "  1,\n",
+        "  2,\n",
+        "  3,\n",
+        "  4,\n",
+        "  5"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        },
+        {
+          "displayName": "Viewer",
+          "keyword": "viewer",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Dashboard ID",
+          "keyword": "dashboard_id",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Warehouse",
           "keyword": "warehouse_id",
           "dataType": "STRING",
           "complexType": "MULTI",
@@ -650,12 +770,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "query_date",
+                  "displayName": "Query Date",
                   "scale": {
                     "type": "temporal"
                   }
                 },
                 "y": {
                   "fieldName": "count(statement_id)",
+                  "displayName": "Query Count",
                   "scale": {
                     "type": "quantitative"
                   }
@@ -705,12 +827,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "count(statement_id)",
+                  "displayName": "Query Count",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "dashboard_id",
+                  "displayName": "Dashboard ID",
                   "scale": {
                     "type": "categorical"
                   }
@@ -760,12 +884,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "count(viewer_email)",
+                  "displayName": "# of Views",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "viewer_email",
+                  "displayName": "Viewer",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -818,12 +944,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "sum(estimated_cost_usd)",
+                  "displayName": "Cost",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "dashboard_id",
+                  "displayName": "Dashboard",
                   "scale": {
                     "type": "categorical"
                   }
@@ -885,10 +1013,12 @@
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "dashboard_id"
+                    "fieldName": "dashboard_id",
+                    "displayName": "Dashboard ID"
                   },
                   {
-                    "fieldName": "executed_by"
+                    "fieldName": "executed_by",
+                    "displayName": "User"
                   },
                   {
                     "fieldName": "count(statement_id)",
@@ -948,12 +1078,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "count(viewer_email)",
+                  "displayName": "# of Views",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "workspace_name",
+                  "displayName": "Workspace",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1003,12 +1135,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "count(statement_id)",
+                  "displayName": "Query Count",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "workspace_name",
+                  "displayName": "Workspace",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1032,15 +1166,16 @@
     },
     {
       "name": "performance",
-      "displayName": "Performance & Costs",
+      "displayName": "Performance & Attributed Costs",
       "layout": [
         {
           "widget": {
             "name": "header",
             "multilineTextboxSpec": {
               "lines": [
-                "## Query Performance & Cost Breakdown\n",
-                "Cache utilization, query latency trends, and DBU cost attribution for dashboard workloads."
+                "## Performance & Attributed Costs\n",
+                "\n",
+                "Query performance metrics (latency, cache) plus **exact per-statement cost attribution** from `system.billing.attributed_usage`. This table joins each dashboard query's `statement_id` directly to its billing record for precise DBU and USD figures. The **Total DBUs Consumed** counter uses `system.billing.usage` at the warehouse level — it reflects total warehouse consumption for warehouses that served dashboard queries. Data is lagged 2 days to allow billing to settle."
               ]
             }
           },
@@ -1142,11 +1277,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "dashboard_costs",
+                  "datasetName": "proportional_costs",
                   "fields": [
                     {
-                      "name": "sum(dbus_consumed)",
-                      "expression": "SUM(`dbus_consumed`)"
+                      "name": "sum(total_dbus)",
+                      "expression": "SUM(`total_dbus`)"
                     }
                   ],
                   "disaggregated": false
@@ -1154,15 +1289,16 @@
               }
             ],
             "spec": {
-              "version": 2,
               "frame": {
                 "title": "Total DBUs Consumed",
-                "showTitle": true
+                "showTitle": true,
+                "showDescription": false
               },
+              "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "sum(dbus_consumed)"
+                  "fieldName": "sum(total_dbus)"
                 }
               },
               "data": {
@@ -1209,12 +1345,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "query_date",
+                  "displayName": "Date",
                   "scale": {
                     "type": "temporal"
                   }
                 },
                 "y": {
                   "fieldName": "sum(estimated_cost_usd)",
+                  "displayName": "Cost",
                   "scale": {
                     "type": "quantitative"
                   }
@@ -1264,12 +1402,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "activity_date",
+                  "displayName": "Date",
                   "scale": {
                     "type": "temporal"
                   }
                 },
                 "y": {
                   "fieldName": "avg(avg_duration_ms)",
+                  "displayName": "Average Duration (ms)",
                   "scale": {
                     "type": "quantitative"
                   }
@@ -1282,7 +1422,7 @@
           },
           "position": {
             "x": 6,
-            "y": 5,
+            "y": 11,
             "width": 6,
             "height": 6
           }
@@ -1323,6 +1463,7 @@
               "encodings": {
                 "x": {
                   "fieldName": "activity_date",
+                  "displayName": "Date",
                   "scale": {
                     "type": "temporal"
                   }
@@ -1385,12 +1526,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "sum(estimated_cost_usd)",
+                  "displayName": "Cost",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "executed_by",
+                  "displayName": "User",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1403,7 +1546,7 @@
           },
           "position": {
             "x": 6,
-            "y": 11,
+            "y": 5,
             "width": 6,
             "height": 6
           }
@@ -1415,11 +1558,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "dashboard_costs",
+                  "datasetName": "proportional_costs",
                   "fields": [
                     {
-                      "name": "sum(dbus_consumed)",
-                      "expression": "SUM(`dbus_consumed`)"
+                      "name": "sum(total_dbus)",
+                      "expression": "SUM(`total_dbus`)"
                     },
                     {
                       "name": "sku_name",
@@ -1431,21 +1574,23 @@
               }
             ],
             "spec": {
-              "version": 3,
               "frame": {
                 "title": "DBU Consumption by SKU",
                 "showTitle": true
               },
+              "version": 3,
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "sum(dbus_consumed)",
+                  "fieldName": "sum(total_dbus)",
+                  "displayName": "DBUs",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "sku_name",
+                  "displayName": "SKU",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1457,7 +1602,7 @@
             }
           },
           "position": {
-            "x": 0,
+            "x": 6,
             "y": 17,
             "width": 6,
             "height": 6
@@ -1470,15 +1615,15 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "dashboard_costs",
+                  "datasetName": "proportional_costs",
                   "fields": [
                     {
-                      "name": "query_date",
-                      "expression": "`query_date`"
+                      "name": "usage_date",
+                      "expression": "`usage_date`"
                     },
                     {
-                      "name": "sum(dbus_consumed)",
-                      "expression": "SUM(`dbus_consumed`)"
+                      "name": "sum(total_dbus)",
+                      "expression": "SUM(`total_dbus`)"
                     }
                   ],
                   "disaggregated": false
@@ -1494,13 +1639,15 @@
               "widgetType": "line",
               "encodings": {
                 "x": {
-                  "fieldName": "query_date",
+                  "fieldName": "usage_date",
+                  "displayName": "Date",
                   "scale": {
                     "type": "temporal"
                   }
                 },
                 "y": {
-                  "fieldName": "sum(dbus_consumed)",
+                  "fieldName": "sum(total_dbus)",
+                  "displayName": "DBUs",
                   "scale": {
                     "type": "quantitative"
                   }
@@ -1512,7 +1659,7 @@
             }
           },
           "position": {
-            "x": 6,
+            "x": 0,
             "y": 17,
             "width": 6,
             "height": 6
@@ -1550,12 +1697,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "count(statement_id)",
+                  "displayName": "Query Count",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "warehouse_id",
+                  "displayName": "Warehouse",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1605,12 +1754,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "sum(estimated_cost_usd)",
+                  "displayName": "Cost",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "warehouse_id",
+                  "displayName": "Warehouse",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1635,11 +1786,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "dashboard_costs",
+                  "datasetName": "proportional_costs",
                   "fields": [
                     {
-                      "name": "sum(dbus_consumed)",
-                      "expression": "SUM(`dbus_consumed`)"
+                      "name": "sum(total_dbus)",
+                      "expression": "SUM(`total_dbus`)"
                     },
                     {
                       "name": "warehouse_id",
@@ -1651,21 +1802,23 @@
               }
             ],
             "spec": {
-              "version": 3,
               "frame": {
                 "title": "DBU Consumption by Warehouse",
                 "showTitle": true
               },
+              "version": 3,
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "sum(dbus_consumed)",
+                  "fieldName": "sum(total_dbus)",
+                  "displayName": "DBUs",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "warehouse_id",
+                  "displayName": "Warehouse",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1715,12 +1868,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "avg(total_duration_ms)",
+                  "displayName": "Avg Question Duration",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "warehouse_id",
+                  "displayName": "Warehouse",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1770,12 +1925,14 @@
               "encodings": {
                 "x": {
                   "fieldName": "sum(estimated_cost_usd)",
+                  "displayName": "Cost",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "workspace_name",
+                  "displayName": "Workspace",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1800,11 +1957,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "dashboard_costs",
+                  "datasetName": "proportional_costs",
                   "fields": [
                     {
-                      "name": "sum(dbus_consumed)",
-                      "expression": "SUM(`dbus_consumed`)"
+                      "name": "sum(total_dbus)",
+                      "expression": "SUM(`total_dbus`)"
                     },
                     {
                       "name": "workspace_name",
@@ -1816,21 +1973,23 @@
               }
             ],
             "spec": {
-              "version": 3,
               "frame": {
                 "title": "DBU Consumption by Workspace",
                 "showTitle": true
               },
+              "version": 3,
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "sum(dbus_consumed)",
+                  "fieldName": "sum(total_dbus)",
+                  "displayName": "DBUs",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "workspace_name",
+                  "displayName": "Workspace",
                   "scale": {
                     "type": "categorical"
                   }
@@ -1928,6 +2087,19 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_date_range",
+                "query": {
+                  "datasetName": "proportional_costs",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -1958,6 +2130,10 @@
                   {
                     "parameterName": "date_range",
                     "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_date_range"
                   }
                 ]
               }
@@ -2042,6 +2218,19 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_viewer",
+                "query": {
+                  "datasetName": "proportional_costs",
+                  "parameters": [
+                    {
+                      "name": "viewer",
+                      "keyword": "viewer"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -2072,6 +2261,10 @@
                   {
                     "parameterName": "viewer",
                     "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_viewer"
+                  },
+                  {
+                    "parameterName": "viewer",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_viewer"
                   }
                 ]
               }
@@ -2156,6 +2349,19 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_dashboard_id",
+                "query": {
+                  "datasetName": "proportional_costs",
+                  "parameters": [
+                    {
+                      "name": "dashboard_id",
+                      "keyword": "dashboard_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -2186,6 +2392,10 @@
                   {
                     "parameterName": "dashboard_id",
                     "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_dashboard_id"
+                  },
+                  {
+                    "parameterName": "dashboard_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_dashboard_id"
                   }
                 ]
               }
@@ -2257,6 +2467,19 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_warehouse_id",
+                "query": {
+                  "datasetName": "proportional_costs",
+                  "parameters": [
+                    {
+                      "name": "warehouse_id",
+                      "keyword": "warehouse_id"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -2283,6 +2506,10 @@
                   {
                     "parameterName": "warehouse_id",
                     "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_warehouse_id"
+                  },
+                  {
+                    "parameterName": "warehouse_id",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_warehouse_id"
                   }
                 ]
               }
@@ -2367,6 +2594,19 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_workspace_name",
+                "query": {
+                  "datasetName": "proportional_costs",
+                  "parameters": [
+                    {
+                      "name": "workspace_name",
+                      "keyword": "workspace_name"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -2397,6 +2637,10 @@
                   {
                     "parameterName": "workspace_name",
                     "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f175656acf1d0f8e91b3cbc6231040_workspace_name"
+                  },
+                  {
+                    "parameterName": "workspace_name",
+                    "queryName": "parameter_dashboards/01f17564815d1cbab445929a079b9cf1/datasets/01f17955d3ee1f20ac223c5a2d36f611_workspace_name"
                   }
                 ]
               }
