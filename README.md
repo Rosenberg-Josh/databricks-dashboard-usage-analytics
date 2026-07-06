@@ -4,7 +4,7 @@ An importable **AI/BI dashboard** that turns Databricks **Unity Catalog system t
 
 No pipelines, no jobs, no data copies. It reads live from system tables, so there's nothing to schedule and nothing to maintain.
 
-> _Screenshot placeholder — add `images/overview.png` and reference it here._
+![Overview Screenshot](images/overview.png)
 
 ---
 
