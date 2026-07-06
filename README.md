@@ -26,7 +26,7 @@ The dashboard is powered by four datasets built directly on system tables:
 | --- | --- |
 | **Views** | `system.access.audit` (`service_name = 'dashboards'`), joined to `system.access.workspaces_latest` for friendly workspace names |
 | **Performance** | `system.query.history`, attributed to a dashboard via `query_source.dashboard_id` |
-| **Cost** | `system.query.history` → `system.billing.attributed_usage` (joined on `statement_id`) → `system.billing.account_prices` for list-price dollars |
+| **Cost** | `system.query.history` → `system.billing.attributed_usage` (joined on statement_id) → `system.billing.account_prices` for negotiated pricing, falling back to `system.billing.list_prices` for estimated USD |
 | **Daily activity** | `system.query.history`, pre-aggregated by day / dashboard / warehouse for efficient trend lines |
 
 ---
